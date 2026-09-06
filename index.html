@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Urban Flood Emergency Management Dashboard</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Leaflet CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    /* Custom Dark Glassmorphism Styling */
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(51, 65, 85, 0.5);
+    }
+    
+    /* Leaflet Dark Overlay Adjustments */
+    .leaflet-popup-content-wrapper, .leaflet-popup-tip {
+      background: #0f172a !important;
+      color: #f8fafc !important;
+      border: 1px solid #334155;
+    }
+    
+    /* Scrollbar Styling */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 3px;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans h-screen flex flex-col overflow-hidden">
+
+  <!-- TOP NAVIGATION BAR -->
+  <header class="h-14 border-b border-slate-800 bg-slate-900/80 backdrop-blur-md px-6 flex items-center justify-between shrink-0 z-10">
+    <div class="flex items-center space-x-3">
+      <div class="p-2 bg-blue-600/20 text-blue-400 rounded-lg border border-blue-500/30">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+      </div>
+      <div>
+        <h1 class="text-sm font-bold tracking-wide uppercase text-slate-200">Urban Flood Risk Command Center</h1>
+        <p class="text-[10px] text-slate-400 font-mono">SIH Prototype | Multi-Segment Hydraulic Telemetry Engine</p>
+      </div>
+    </div>
+
+    <!-- Live Telemetry Badge & Role Switcher -->
+    <div class="flex items-center space-x-4">
+      <div class="hidden sm:flex items-center space-x-2 bg-slate-950/80 px-3 py-1 rounded-full border border-slate-800 text-[11px] font-mono">
+        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+        <span class="text-slate-400">WS: <span class="text-emerald-400">Connected</span></span>
+        <span class="text-slate-600">|</span>
+        <span class="text-slate-400">Latency: <span class="text-cyan-400">18ms</span></span>
+      </div>
+      <select id="role-switcher" class="bg-slate-800 text-xs text-slate-200 border border-slate-700 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-blue-500 font-semibold">
+        <option value="municipal">Municipal Ops View</option>
+        <option value="citizen">Citizen Safety View</option>
+      </select>
+    </div>
+  </header>
+
+  <!-- MAIN CANVAS GRID -->
+  <div class="flex-1 flex overflow-hidden relative">
+
+    <!-- LEFT FLOATING CONTROL SIDEBAR -->
+    <aside class="w-80 glass-panel border-r border-slate-800 flex flex-col justify-between shrink-0 z-20 overflow-y-auto p-4 space-y-4">
+      
+      <div class="space-y-4">
+        <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400 border-b border-slate-800 pb-2">Simulation Parameters</h2>
+
+        <!-- Rainfall Intensity Slider -->
+        <div class="space-y-1.5">
+          <div class="flex justify-between text-xs">
+            <label class="text-slate-300 font-medium">Rainfall Intensity</label>
+            <span id="rain-val" class="font-mono text-cyan-400 font-bold">45 mm/hr</span>
+          </div>
+          <input id="rain-slider" type="range" min="0" max="120" value="45" oninput="updateSimulation()" 
+                 class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-500">
+        </div>
+
+        <!-- Drainage Runoff Capacity Slider -->
+        <div class="space-y-1.5">
+          <div class="flex justify-between text-xs">
+            <label class="text-slate-300 font-medium">Drainage Capacity</label>
+            <span id="drain-val" class="font-mono text-amber-400 font-bold">60%</span>
+          </div>
+          <input id="drain-slider" type="range" min="10" max="100" value="60" oninput="updateSimulation()" 
+                 class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500">
+        </div>
+
+        <!-- REPORT INCIDENT BUTTON -->
+        <button id="toggle-report-mode" onclick="toggleReportMode()" 
+                class="w-full py-2.5 px-4 bg-amber-600 hover:bg-amber-500 text-white font-semibold rounded-lg shadow-lg transition-all text-xs tracking-wider uppercase flex items-center justify-center gap-2 border border-amber-500/30">
+          <span id="report-icon">📍</span>
+          <span id="report-btn-text">Report Map Incident</span>
+        </button>
+
+        <!-- EMERGENCY ROUTE EVALUATOR -->
+        <div class="p-3 bg-slate-900/90 rounded-xl border border-slate-800 space-y-2">
+          <div class="flex justify-between items-center border-b border-slate-800 pb-1.5">
+            <span class="text-xs font-bold text-slate-300">Emergency Route Matrix</span>
+            <span id="route-status" class="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-mono">SAFE</span>
+          </div>
+          <div class="space-y-1 text-[11px] font-mono">
+            <div class="flex justify-between text-slate-400">
+              <span>Primary Sector 4 Route:</span>
+              <span id="primary-risk" class="text-emerald-400 font-bold">Clear (0.12m)</span>
+            </div>
+            <div class="flex justify-between text-slate-400">
+              <span>Detour Delta:</span>
+              <span class="text-slate-200">+1.8 km (+4 mins)</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- MULTI-SEGMENT ANALYTICS CHART -->
+        <div class="p-3 bg-slate-900/90 rounded-xl border border-slate-800 space-y-2">
+          <h3 class="text-xs font-bold text-slate-300">Segment Inundation Depth (m)</h3>
+          <div class="h-36 relative">
+            <canvas id="depthChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- FOOTER AUDIT BULLETIN -->
+      <div class="pt-2 border-t border-slate-800">
+        <h3 class="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Live Audit Feed</h3>
+        <div id="ai-bulletin" class="text-[11px] font-mono text-slate-300 bg-slate-900 p-2.5 rounded-lg border border-slate-800 leading-relaxed max-h-24 overflow-y-auto">
+          [SYSTEM INITIALIZED]: Connected to spatial grid. All sensors online.
+        </div>
+      </div>
+    </aside>
+
+    <!-- MAP CONTAINER LAYER -->
+    <main class="flex-1 relative">
+      <div id="map" class="w-full h-full bg-slate-950 z-0"></div>
+
+      <!-- MAP OVERLAY CONTROLS -->
+      <div class="absolute top-4 right-4 z-[1000] flex space-x-2">
+        <button onclick="toggleRadarOverlay()" class="bg-slate-900/90 hover:bg-slate-800 text-slate-200 border border-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium backdrop-blur shadow-md flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span> Live Weather Radar
+        </button>
+      </div>
+    </main>
+
+  </div>
+
+  <!-- INCIDENT REPORTING MODAL -->
+  <div id="incident-modal" class="hidden fixed inset-0 z-[2000] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="glass-panel w-full max-w-md rounded-xl p-6 shadow-2xl border border-slate-700 space-y-4">
+      
+      <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+        <h3 class="text-sm font-bold text-amber-400 flex items-center gap-2">
+          <span>⚠️</span> New Field Incident Report
+        </h3>
+        <button onclick="closeIncidentModal()" class="text-slate-400 hover:text-white text-lg font-bold">&times;</button>
+      </div>
+
+      <form id="incident-form" onsubmit="submitIncidentReport(event)" class="space-y-3 text-xs">
+        <div class="bg-slate-900/90 p-2.5 rounded-lg border border-slate-800 font-mono text-slate-400">
+          <span>Location: </span>
+          <span id="modal-coords" class="text-cyan-400 font-semibold">12.9716, 77.5946</span>
+        </div>
+
+        <div>
+          <label class="block text-slate-300 mb-1 font-semibold">Incident Type</label>
+          <select id="incident-type" required class="w-full bg-slate-900 text-slate-200 border border-slate-700 rounded-lg p-2 focus:outline-none focus:border-amber-500">
+            <option value="Severe Flooding">🌊 Severe Street Flooding</option>
+            <option value="Blocked Drain">🧹 Blocked Drain / Debris</option>
+            <option value="Stranded Vehicle">🚗 Stranded Vehicle</option>
+            <option value="Infrastructure Damage">🚧 Road Collapse / Infrastructure</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-slate-300 mb-1 font-semibold">Severity Level</label>
+          <select id="incident-severity" required class="w-full bg-slate-900 text-slate-200 border border-slate-700 rounded-lg p-2 focus:outline-none focus:border-amber-500">
+            <option value="Low">🟡 Low - Passable with caution</option>
+            <option value="Medium">🟠 Medium - Heavy congestion / Rising water</option>
+            <option value="Critical" selected>🔴 Critical - Road completely impassable</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-slate-300 mb-1 font-semibold">Description / Field Notes</label>
+          <textarea id="incident-notes" rows="3" required placeholder="e.g., Water depth reaching knee height. Underpass completely blocked." 
+                    class="w-full bg-slate-900 text-slate-200 border border-slate-700 rounded-lg p-2 focus:outline-none focus:border-amber-500 placeholder:text-slate-600"></textarea>
+        </div>
+
+        <div class="flex gap-2 pt-2">
+          <button type="button" onclick="closeIncidentModal()" 
+                  class="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg font-semibold transition">
+            Cancel
+          </button>
+          <button type="submit" 
+                  class="flex-1 py-2 bg-amber-600 hover:bg-amber-500 text-white font-semibold rounded-lg shadow-lg transition">
+            Submit Report
+          </button>
+        </div>
+      </form>
+
+    </div>
+  </div>
+
+  <!-- APPLICATION LOGIC SCRIPT -->
+  <script>
+    // 1. MAP INITIALIZATION (Centered on Bengaluru Grid)
+    const map = L.map('map', { zoomControl: false }).setView([12.9716, 77.5946], 13);
+    
+    // Add Keyless Dark-themed CartoDB Tiles
+    L.tileLayer('https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+    }).addTo(map);
+
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+    // Dynamic Road Network Coordinates (Simulated Flood Choke Points)
+    const roadSegments = [
+      { id: "Sector A - Main Arterial", coords: [[12.9716, 77.5946], [12.9800, 77.6000]] },
+      { id: "Sector B - Underpass Choke", coords: [[12.9800, 77.6000], [12.9880, 77.6100]] },
+      { id: "Sector C - Drainage Junction", coords: [[12.9880, 77.6100], [12.9950, 77.6250]] }
+    ];
+
+    let polylineLayers = [];
+    const incidentLayerGroup = L.layerGroup().addTo(map);
+
+    // Initialize Road Polylines
+    roadSegments.forEach((segment) => {
+      const polyline = L.polyline(segment.coords, { color: '#10B981', weight: 6, opacity: 0.8 }).addTo(map);
+      polyline.bindPopup(`<b>${segment.id}</b><br>Status: Monitoring...`);
+      polylineLayers.push({ id: segment.id, layer: polyline });
+    });
+
+    // 2. CHART.JS INTEGRATION (Multi-Segment Monitoring)
+    const ctx = document.getElementById('depthChart').getContext('2d');
+    const depthChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: ['Sec A', 'Sec B', 'Sec C'],
+        datasets: [{
+          label: 'Inundation Depth (m)',
+          data: [0.12, 0.45, 0.18],
+          backgroundColor: ['#10B981', '#F59E0B', '#10B981'],
+          borderRadius: 4
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { 
+            beginAtZero: true, 
+            max: 2.0,
+            grid: { color: '#1e293b' },
+            ticks: { color: '#94a3b8', font: { size: 10 } }
+          },
+          x: { 
+            grid: { display: false },
+            ticks: { color: '#94a3b8', font: { size: 10 } }
+          }
+        }
+      }
+    });
+
+    // 3. HYDRAULIC SIMULATION ENGINE
+    function updateSimulation() {
+      const rain = parseInt(document.getElementById('rain-slider').value);
+      const drain = parseInt(document.getElementById('drain-slider').value);
+      
+      document.getElementById('rain-val').innerText = `${rain} mm/hr`;
+      document.getElementById('drain-val').innerText = `${drain}%`;
+
+      // Hydraulic water depth formula calculation
+      const depthA = ((rain * 0.015) * (1 - (drain / 100) * 0.5)).toFixed(2);
+      const depthB = ((rain * 0.028) * (1 - (drain / 100) * 0.4)).toFixed(2);
+      const depthC = ((rain * 0.018) * (1 - (drain / 100) * 0.6)).toFixed(2);
+
+      const depths = [parseFloat(depthA), parseFloat(depthB), parseFloat(depthC)];
+
+      // Update Chart Data
+      depthChart.data.datasets[0].data = depths;
+      
+      // Dynamic Color Formatting Based on Risk
+      depthChart.data.datasets[0].backgroundColor = depths.map(d => 
+        d > 0.8 ? '#EF4444' : (d > 0.4 ? '#F59E0B' : '#10B981')
+      );
+      depthChart.update();
+
+      // Update Map Polyline Colors
+      polylineLayers.forEach((item, idx) => {
+        const d = depths[idx];
+        let color = '#10B981';
+        if (d > 0.8) color = '#EF4444';
+        else if (d > 0.4) color = '#F59E0B';
+
+        item.layer.setStyle({ color: color });
+        item.layer.setPopupContent(`<b>${item.id}</b><br>Predicted Water Depth: <b>${d}m</b>`);
+      });
+
+      // Update Route Matrix & Alert Audit Log
+      const primaryRisk = document.getElementById('primary-risk');
+      const routeStatus = document.getElementById('route-status');
+      const bulletin = document.getElementById('ai-bulletin');
+
+      if (depths[1] > 0.8) {
+        primaryRisk.innerText = `IMPASSABLE (${depths[1]}m)`;
+        primaryRisk.className = "text-red-400 font-bold animate-pulse";
+        routeStatus.innerText = "DETOUR ACTIVE";
+        routeStatus.className = "text-[10px] px-2 py-0.5 rounded bg-red-500/20 text-red-400 font-mono";
+        bulletin.innerText = `[CRITICAL ALERT]: Sector B depth reached ${depths[1]}m! Rerouting automated emergency transit via Sector C detour.`;
+      } else {
+        primaryRisk.innerText = `Clear (${depths[0]}m)`;
+        primaryRisk.className = "text-emerald-400 font-bold";
+        routeStatus.innerText = "SAFE";
+        routeStatus.className = "text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-mono";
+        bulletin.innerText = `[SYSTEM NORMAL]: Rainfall intensity set to ${rain} mm/hr. All main arterial routes remain passable.`;
+      }
+    }
+
+    // 4. INTERACTIVE INCIDENT REPORTING ENGINE
+    let isReportMode = false;
+    let pendingCoords = null;
+
+    function toggleReportMode() {
+      isReportMode = !isReportMode;
+      const btn = document.getElementById('toggle-report-mode');
+      const btnText = document.getElementById('report-btn-text');
+      const mapContainer = document.getElementById('map');
+
+      if (isReportMode) {
+        btn.className = "w-full py-2.5 px-4 bg-red-600 hover:bg-red-500 text-white font-semibold rounded-lg shadow-lg transition-all text-xs tracking-wider uppercase flex items-center justify-center gap-2 border border-red-500/50 animate-pulse";
+        btnText.innerText = "Click Map to Pin Incident";
+        mapContainer.style.cursor = 'crosshair';
+      } else {
+        btn.className = "w-full py-2.5 px-4 bg-amber-600 hover:bg-amber-500 text-white font-semibold rounded-lg shadow-lg transition-all text-xs tracking-wider uppercase flex items-center justify-center gap-2 border border-amber-500/30";
+        btnText.innerText = "Report Map Incident";
+        mapContainer.style.cursor = '';
+      }
+    }
+
+    map.on('click', function(e) {
+      if (!isReportMode) return;
+
+      pendingCoords = e.latlng;
+      document.getElementById('modal-coords').innerText = `${e.latlng.lat.toFixed(4)}, ${e.latlng.lng.toFixed(4)}`;
+      document.getElementById('incident-modal').classList.remove('hidden');
+    });
+
+    function closeIncidentModal() {
+      document.getElementById('incident-modal').classList.add('hidden');
+      document.getElementById('incident-form').reset();
+      if (isReportMode) toggleReportMode();
+    }
+
+    function createIncidentIcon(severity) {
+      let color = '#F59E0B';
+      if (severity === 'Critical') color = '#EF4444';
+      if (severity === 'Low') color = '#3B82F6';
+
+      const svgMarker = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="${color}" class="w-8 h-8 drop-shadow-[0_4px_10px_rgba(0,0,0,0.8)]">
+          <path fill-rule="evenodd" d="M11.54 22.351l.07.04.028.016a.76.76 0 00.723 0l.028-.015.071-.041a16.975 16.975 0 001.144-.742 19.58 19.58 0 002.683-2.282c1.944-1.99 3.963-4.98 3.963-8.827a8.25 8.25 0 00-16.5 0c0 3.846 2.02 6.837 3.963 8.827a19.58 19.58 0 002.682 2.282 16.975 16.975 0 001.145.742zM12 13.5a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd" />
+        </svg>`;
+
+      return L.divIcon({
+        html: svgMarker,
+        className: 'custom-incident-pin',
+        iconSize: [32, 32],
+        iconAnchor: [16, 32],
+        popupAnchor: [0, -32]
+      });
+    }
+
+    function submitIncidentReport(e) {
+      e.preventDefault();
+
+      const type = document.getElementById('incident-type').value;
+      const severity = document.getElementById('incident-severity').value;
+      const notes = document.getElementById('incident-notes').value;
+      const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+      const marker = L.marker([pendingCoords.lat, pendingCoords.lng], {
+        icon: createIncidentIcon(severity)
+      }).addTo(incidentLayerGroup);
+
+      const popupContent = `
+        <div class="p-1 font-sans text-slate-900 max-w-[200px]">
+          <div class="flex items-center gap-1.5 border-b border-slate-200 pb-1 mb-1">
+            <span class="text-xs">⚠️</span>
+            <h4 class="font-bold text-xs uppercase tracking-wide text-slate-800">${type}</h4>
+          </div>
+          <p class="text-[11px] text-slate-600 mb-1 leading-snug">${notes}</p>
+          <div class="flex justify-between items-center text-[10px] text-slate-500 pt-1 border-t border-slate-100 mb-2">
+            <span>Level: <b class="${severity === 'Critical' ? 'text-red-600' : 'text-amber-600'}">${severity}</b></span>
+            <span>${timestamp}</span>
+          </div>
+          <button onclick="removeIncidentMarker(${L.stamp(marker)})" 
+                  class="w-full py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold rounded shadow transition">
+            Mark Resolved
+          </button>
+        </div>
+      `;
+
+      marker.bindPopup(popupContent);
+
+      const bulletin = document.getElementById('ai-bulletin');
+      bulletin.innerText = `[FIELD REPORT ${timestamp}]: ${severity} incident (${type}) logged at [${pendingCoords.lat.toFixed(3)}, ${pendingCoords.lng.toFixed(3)}]. ${notes}`;
+
+      closeIncidentModal();
+    }
+
+    function removeIncidentMarker(markerId) {
+      incidentLayerGroup.eachLayer(layer => {
+        if (L.stamp(layer) === markerId) {
+          incidentLayerGroup.removeLayer(layer);
+        }
+      });
+
+      const bulletin = document.getElementById('ai-bulletin');
+      bulletin.innerText = `[SYSTEM LOG]: Field incident marked resolved and removed from live grid.`;
+    }
+
+    // Toggle simulated weather radar layer
+    let radarLayer = null;
+    function toggleRadarOverlay() {
+      if (radarLayer) {
+        map.removeLayer(radarLayer);
+        radarLayer = null;
+      } else {
+        radarLayer = L.tileLayer('https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid=YOUR_API_KEY_HERE', {
+          opacity: 0.6
+        });
+        const bulletin = document.getElementById('ai-bulletin');
+        bulletin.innerText = `[RADAR TOGGLE]: Live radar layer requested. Connect RainViewer or OpenWeather API key to stream active tiles.`;
+      }
+    }
+
+    // Initialize Simulation Defaults
+    updateSimulation();
+  </script>
+
+  <!-- BACKEND API SERVICE HAND-OFF INITIALIZATION -->
+  <script type="module">
+    import apiService from './services/apiService.js';
+
+    async function initDashboard() {
+      try {
+        const data = await apiService.getLiveTelemetry();
+        console.log('Loaded Telemetry Data from API Service:', data);
+        
+        // Wire up WebSockets for real-time telemetry updates
+        apiService.initWebSocket((wsData) => {
+          console.log('Real-time push event received:', wsData);
+        });
+      } catch (err) {
+        console.error('Failed to initialize dashboard data:', err);
+      }
+    }
+
+    initDashboard();
+  </script>
+</body>
+</html>

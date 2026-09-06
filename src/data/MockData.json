@@ -1,0 +1,87 @@
+{
+  "systemStatus": {
+    "status": "ONLINE",
+    "activeAlerts": 2,
+    "lastSync": "2026-09-06T09:25:00Z",
+    "wsConnection": true
+  },
+  "sensors": [
+    {
+      "id": "SENSOR-01",
+      "name": "Silk Board Underpass Drain Node",
+      "lat": 12.9172,
+      "lng": 77.6228,
+      "waterLevelMeters": 0.85,
+      "thresholdMeters": 0.50,
+      "status": "CRITICAL",
+      "batteryPercentage": 88,
+      "lastUpdated": "09:24:15 AM"
+    },
+    {
+      "id": "SENSOR-02",
+      "name": "Koramangala 8th Block Culvert",
+      "lat": 12.9382,
+      "lng": 77.6201,
+      "waterLevelMeters": 0.22,
+      "thresholdMeters": 0.60,
+      "status": "NORMAL",
+      "batteryPercentage": 95,
+      "lastUpdated": "09:24:30 AM"
+    },
+    {
+      "id": "SENSOR-03",
+      "name": "Indiranagar 100ft Road Sump",
+      "lat": 12.9784,
+      "lng": 77.6408,
+      "waterLevelMeters": 0.48,
+      "thresholdMeters": 0.50,
+      "status": "WARNING",
+      "batteryPercentage": 72,
+      "lastUpdated": "09:24:10 AM"
+    }
+  ],
+  "roadSegments": [
+    {
+      "segmentId": "SEG-101",
+      "name": "Sector A - Outer Ring Road",
+      "coords": [
+        [12.9716, 77.5946],
+        [12.9800, 77.6000]
+      ],
+      "currentDepthMeters": 0.12,
+      "status": "PASSABLE"
+    },
+    {
+      "segmentId": "SEG-102",
+      "name": "Sector B - Underpass Choke",
+      "coords": [
+        [12.9800, 77.6000],
+        [12.9880, 77.6100]
+      ],
+      "currentDepthMeters": 0.82,
+      "status": "IMPASSABLE"
+    },
+    {
+      "segmentId": "SEG-103",
+      "name": "Sector C - Bypass Corridor",
+      "coords": [
+        [12.9880, 77.6100],
+        [12.9950, 77.6250]
+      ],
+      "currentDepthMeters": 0.18,
+      "status": "PASSABLE"
+    }
+  ],
+  "incidents": [
+    {
+      "id": "INC-8801",
+      "type": "Severe Flooding",
+      "severity": "Critical",
+      "lat": 12.9750,
+      "lng": 77.6050,
+      "notes": "Underpass submerged completely. 2 stranded vehicles.",
+      "timestamp": "09:15 AM",
+      "status": "ACTIVE"
+    }
+  ]
+}
