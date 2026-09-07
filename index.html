@@ -388,13 +388,27 @@
       });
     }
 
-    function submitIncidentReport(e) {
+    async function submitIncidentReport(e) {
       e.preventDefault();
 
       const type = document.getElementById('incident-type').value;
       const severity = document.getElementById('incident-severity').value;
       const notes = document.getElementById('incident-notes').value;
       const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      let savedIncident;
+
+      try {
+        savedIncident = await window.apiService.submitIncident({
+          type,
+          severity,
+          lat: pendingCoords.lat,
+          lng: pendingCoords.lng,
+          notes
+        });
+      } catch (error) {
+        document.getElementById('ai-bulletin').innerText = `[API ERROR]: Unable to save incident. ${error.message}`;
+        return;
+      }
 
       const marker = L.marker([pendingCoords.lat, pendingCoords.lng], {
         icon: createIncidentIcon(severity)
@@ -418,7 +432,10 @@
         </div>
       `;
 
-      marker.bindPopup(popupContent);
+      marker.bindPopup(popupContent.replace(
+        `removeIncidentMarker(${L.stamp(marker)})`,
+        `removeIncidentMarker(${L.stamp(marker)}, '${savedIncident.id}')`
+      ));
 
       const bulletin = document.getElementById('ai-bulletin');
       bulletin.innerText = `[FIELD REPORT ${timestamp}]: ${severity} incident (${type}) logged at [${pendingCoords.lat.toFixed(3)}, ${pendingCoords.lng.toFixed(3)}]. ${notes}`;
@@ -426,7 +443,16 @@
       closeIncidentModal();
     }
 
-    function removeIncidentMarker(markerId) {
+    async function removeIncidentMarker(markerId, incidentId) {
+      if (incidentId) {
+        try {
+          await window.apiService.resolveIncident(incidentId);
+        } catch (error) {
+          document.getElementById('ai-bulletin').innerText = `[API ERROR]: Unable to resolve incident. ${error.message}`;
+          return;
+        }
+      }
+
       incidentLayerGroup.eachLayer(layer => {
         if (L.stamp(layer) === markerId) {
           incidentLayerGroup.removeLayer(layer);
@@ -458,7 +484,8 @@
 
   <!-- BACKEND API SERVICE HAND-OFF INITIALIZATION -->
   <script type="module">
-    import apiService from './services/apiService.js';
+    import apiService from './src/services/apiService.js';
+  window.apiService = apiService;
 
     async function initDashboard() {
       try {

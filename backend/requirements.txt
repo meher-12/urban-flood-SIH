@@ -1,6 +1,6 @@
 fastapi==0.110.0
 uvicorn==0.28.0
-pyswmm==1.2.0
-pandas==2.2.1
-numpy==1.26.4
-pydantic==2.6.4
+websockets>=13,<16
+pydantic>=2.12,<3
+# Optional SWMM support can be installed separately when a compatible Python
+# and pyswmm build are available.

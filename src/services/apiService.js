@@ -4,9 +4,9 @@
  */
 
 const CONFIG = {
-  USE_MOCK: true, // Flip to FALSE when backend endpoints are live
-  BASE_URL: 'https://api.yourcityflood.org/v1',
-  WS_URL: 'wss://api.yourcityflood.org/ws/telemetry'
+  USE_MOCK: false,
+  BASE_URL: 'http://127.0.0.1:8000/api/v1',
+  WS_URL: 'ws://127.0.0.1:8000/ws/telemetry'
 };
 
 class ApiService {
@@ -24,14 +24,12 @@ class ApiService {
   async getLiveTelemetry() {
     if (CONFIG.USE_MOCK) {
       // In development, import or fetch the mock JSON file
-      const response = await fetch('./data/mockData.json');
+      const response = await fetch('/src/data/MockData.json');
       const mockData = await response.json();
       return this._mockDelay(mockData);
     }
 
-    const response = await fetch(`${CONFIG.BASE_URL}/telemetry/live`);
-    if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
-    return await response.json();
+    return this._request('/telemetry/live');
   }
 
   // 2. SUBMIT A NEW INCIDENT REPORT
@@ -61,6 +59,7 @@ class ApiService {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(incidentPayload)
     });
+    if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
     return await response.json();
   }
 
@@ -82,6 +81,7 @@ class ApiService {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ rainIntensity, drainCapacity })
     });
+    if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
     return await response.json();
   }
 
@@ -95,7 +95,14 @@ class ApiService {
     const response = await fetch(`${CONFIG.BASE_URL}/incidents/${incidentId}`, {
       method: 'DELETE'
     });
+    if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
     return await response.json();
+  }
+
+  async _request(path) {
+    const response = await fetch(`${CONFIG.BASE_URL}${path}`);
+    if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
+    return response.json();
   }
 
   // 5. WEBSOCKET REAL-TIME ENGINE
